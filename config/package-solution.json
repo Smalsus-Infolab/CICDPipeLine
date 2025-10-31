@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "share-point-test-client-side-solution",
+    "id": "377698ee-a304-41dc-ab15-935ca9d60530",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.21.0"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "share-point-test description"
+      },
+      "longDescription": {
+        "default": "share-point-test description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "share-point-test Feature",
+        "description": "The feature that activates elements of the share-point-test solution.",
+        "id": "107b3416-6806-4e7e-b048-2cf47942e0af",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/share-point-test.sppkg"
+  }
+}

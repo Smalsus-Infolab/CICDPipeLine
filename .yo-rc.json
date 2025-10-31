@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "18.18.0",
+    "sdksVersions": {},
+    "version": "1.21.0",
+    "libraryName": "share-point-test",
+    "libraryId": "377698ee-a304-41dc-ab15-935ca9d60530",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "share-point-test",
+    "solutionShortDescription": "share-point-test description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
