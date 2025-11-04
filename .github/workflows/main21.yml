@@ -1,0 +1,130 @@
+name: SPFx PipelineSolution1
+
+on:
+  push:
+    branches:
+      - CIPipeLineBranch
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # 🧩 Step 1: Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 🧩 Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 🧩 Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci --force
+
+      # 🧩 Step 4: Build & Package SPFx Solution
+      - name: Build & Package SPFx Solution
+        shell: pwsh
+        run: |
+          Write-Host "🧹 Cleaning and building SPFx..."
+          $env:NODE_OPTIONS="--max_old_space_size=8192"
+          npx gulp clean
+          npx gulp build
+          npx gulp bundle --ship
+          npx gulp package-solution --ship
+
+      # 🧩 Step 5: Verify Secrets
+      - name: 🔍 Verify Secrets
+        shell: pwsh
+        env:
+          M365_APP_ID: ${{ secrets.M365_APP_ID }}
+          M365_TENANT_DOMAIN: ${{ secrets.M365_TENANT_DOMAIN }}
+          M365_CERTIFICATE_BASE64: ${{ secrets.M365_CERTIFICATE_BASE64 }}
+          M365_CERTIFICATE_PASSWORD: ${{ secrets.M365_CERTIFICATE_PASSWORD }}
+          M365_APP_CATALOG_URL: ${{ secrets.M365_APP_CATALOG_URL }}
+        run: |
+          $required = @('M365_APP_ID','M365_TENANT_DOMAIN','M365_CERTIFICATE_BASE64','M365_CERTIFICATE_PASSWORD','M365_APP_CATALOG_URL')
+          foreach ($s in $required) {
+            if (-not (Test-Path "Env:\$s")) { Write-Error "❌ Secret $s missing!"; exit 1 }
+            else { Write-Host "✅ Secret $s found." }
+          }
+
+      # 🧩 Step 6: Deploy SPFx App
+      - name: 🚀 Deploy SPFx App to Static App Catalog
+        shell: pwsh
+        env:
+          M365_APP_ID: ${{ secrets.M365_APP_ID }}
+          M365_TENANT_DOMAIN: ${{ secrets.M365_TENANT_DOMAIN }}
+          M365_CERTIFICATE_BASE64: ${{ secrets.M365_CERTIFICATE_BASE64 }}
+          M365_CERTIFICATE_PASSWORD: ${{ secrets.M365_CERTIFICATE_PASSWORD }}
+          M365_APP_CATALOG_URL: ${{ secrets.M365_APP_CATALOG_URL }}
+        run: |
+          Write-Host "📦 Installing Microsoft 365 CLI..."
+          npm install -g @pnp/cli-microsoft365@latest
+
+          Write-Host "🔐 Preparing certificate..."
+          $certPath = "C:\\cert.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($Env:M365_CERTIFICATE_BASE64))
+          
+          if (-Not (Test-Path $certPath)) {
+            Write-Error "❌ Certificate creation failed!"
+            exit 1
+          }
+
+          Write-Host "🔑 Logging into Microsoft 365..."
+          try {
+            m365 login --authType certificate `
+              --appId $Env:M365_APP_ID `
+              --tenant $Env:M365_TENANT_DOMAIN `
+              --certificateFile $certPath `
+              --password $Env:M365_CERTIFICATE_PASSWORD
+          }
+          catch {
+            Write-Error "❌ M365 login failed: $($_.Exception.Message)"
+            exit 1
+          }
+
+          Write-Host "🌐 Connecting to static App Catalog: $Env:M365_APP_CATALOG_URL ..."
+          try {
+            m365 spo connect --url $Env:M365_APP_CATALOG_URL
+          }
+          catch {
+            Write-Error "❌ Failed to connect to App Catalog: $($_.Exception.Message)"
+            exit 1
+          }
+
+          Write-Host "📁 Searching for .sppkg package..."
+          $pkg = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter *.sppkg | Select-Object -First 1
+
+          if (-not $pkg) {
+            Write-Error "❌ No .sppkg file found!"
+            exit 1
+          }
+
+          Write-Host "📤 Uploading and deploying SPFx app to $Env:M365_APP_CATALOG_URL ..."
+          try {
+            m365 spo app add --filePath "$($pkg.FullName)" --appCatalogUrl $Env:M365_APP_CATALOG_URL --overwrite
+            m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogUrl $Env:M365_APP_CATALOG_URL --skipFeatureDeployment
+            Write-Host "✅ SPFx App deployed successfully to site app catalog!"
+          }
+          catch {
+            Write-Host "⚠️ Exception during deployment: $($_.Exception.Message)"
+            Write-Host "🔁 Retrying deployment once..."
+            Start-Sleep -Seconds 10
+            try {
+              m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogUrl $Env:M365_APP_CATALOG_URL --skipFeatureDeployment
+              Write-Host "✅ SPFx App deployed successfully on retry!"
+            }
+            catch {
+              Write-Error "❌ Deployment failed after retry: $($_.Exception.Message)"
+              exit 1
+            }
+          }
+
+          Write-Host "🧹 Cleaning up certificate..."
+          Remove-Item $certPath -Force
+          Write-Host "🧩 Job completed successfully ✅"
