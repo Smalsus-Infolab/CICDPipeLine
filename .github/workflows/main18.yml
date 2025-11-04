@@ -1,0 +1,94 @@
+name: SPFx PipelineSolution1
+
+on:
+  push:
+    branches:
+      - CIPipeLineBranch
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # 🧩 Step 1: Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 🧩 Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 🧩 Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci --force
+
+      # 🧩 Step 4: Build and package SPFx
+      - name: Build & Package SPFx Solution
+        shell: pwsh
+        run: |
+          Write-Host "🧹 Cleaning and building SPFx..."
+          $env:NODE_OPTIONS="--max_old_space_size=8192"
+          npx gulp clean
+          npx gulp build
+          npx gulp bundle --ship
+          npx gulp package-solution --ship
+
+      # 🧩 Step 5: Verify GitHub secrets
+      - name: 🔍 Verify Secrets
+        shell: pwsh
+        run: |
+          $required = @('M365_APP_ID','M365_TENANT_ID','M365_CERTIFICATE_BASE64','M365_CERTIFICATE_PASSWORD')
+          foreach ($s in $required) {
+            if (-not (Get-Item -Path Env:$s)) { Write-Error "❌ Secret $s missing!"; exit 1 }
+            else { Write-Host "✅ Secret $s found." }
+          }
+
+      # 🧩 Step 6: Deploy SPFx App
+      - name: 🚀 Deploy SPFx App to Tenant Catalog
+        shell: pwsh
+        run: |
+          Write-Host "📦 Installing Microsoft 365 CLI..."
+          npm install -g @pnp/cli-microsoft365@latest
+
+          Write-Host "🔐 Preparing certificate..."
+          $certPath = "C:\\cert.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String("${{ secrets.M365_CERTIFICATE_BASE64 }}"))
+          
+          if (-Not (Test-Path $certPath)) {
+            Write-Error "❌ Certificate creation failed!"
+            exit 1
+          }
+
+          Write-Host "🔑 Logging into Microsoft 365..."
+          m365 login --authType certificate `
+            --appId "${{ secrets.M365_APP_ID }}" `
+            --tenant "${{ secrets.M365_TENANT_ID }}" `
+            --certificateFile $certPath `
+            --password "${{ secrets.M365_CERTIFICATE_PASSWORD }}"
+
+          $tenantAdminUrl = "https://${{ secrets.M365_TENANT_ID }}-admin.sharepoint.com"
+          Write-Host "🌐 Connecting to $tenantAdminUrl ..."
+          m365 spo connect --url $tenantAdminUrl
+
+          Write-Host "📁 Searching for .sppkg package..."
+          $pkg = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter *.sppkg | Select-Object -First 1
+
+          if (-not $pkg) {
+            Write-Error "❌ No .sppkg file found!"
+            exit 1
+          }
+
+          Write-Host "📤 Uploading and deploying SPFx app..."
+          try {
+            m365 spo app add --filePath "$($pkg.FullName)" --appCatalogScope tenant --overwrite
+            m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogScope tenant --skipFeatureDeployment
+            Write-Host "✅ SPFx App deployed successfully!"
+          }
+          catch {
+            Write-Error "❌ Deployment failed: $($_.Exception.Message)"
+            exit 1
+          }
