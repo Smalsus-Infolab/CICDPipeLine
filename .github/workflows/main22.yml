@@ -1,0 +1,174 @@
+name: SPFx PipelineSolution1
+
+on:
+  push:
+    branches:
+      - CIPipeLineBranch
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug logging and upload transcript (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+  build-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # Step 1: Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm ci --force
+
+      # Step 4: Build & Package SPFx
+      - name: Build & Package SPFx Solution
+        shell: pwsh
+        run: |
+          Write-Host "🧹 Cleaning and building SPFx..."
+          $env:NODE_OPTIONS="--max_old_space_size=8192"
+          npx gulp clean
+          npx gulp build
+          npx gulp bundle --ship
+          npx gulp package-solution --ship
+
+      # Step 5: Verify required secrets exist (exposed as env for script)
+      - name: 🔍 Verify Secrets
+        shell: pwsh
+        env:
+          M365_APP_ID: ${{ secrets.M365_APP_ID }}
+          M365_TENANT_DOMAIN: ${{ secrets.M365_TENANT_DOMAIN }}
+          M365_CERTIFICATE_BASE64: ${{ secrets.M365_CERTIFICATE_BASE64 }}
+          M365_CERTIFICATE_PASSWORD: ${{ secrets.M365_CERTIFICATE_PASSWORD }}
+          M365_APP_CATALOG_URL: ${{ secrets.M365_APP_CATALOG_URL }}
+        run: |
+          $required = @('M365_APP_ID','M365_TENANT_DOMAIN','M365_CERTIFICATE_BASE64','M365_CERTIFICATE_PASSWORD','M365_APP_CATALOG_URL')
+          foreach ($s in $required) {
+            if (-not (Test-Path "Env:\$s") -or [string]::IsNullOrEmpty((Get-Item "Env:\$s").Value)) {
+              Write-Error "❌ Secret $s is missing or empty!"
+              exit 1
+            } else {
+              Write-Host "✅ Secret $s found."
+            }
+          }
+
+      # Step 6: Deploy (with optional transcript/debug) - uses a finally pattern to always stop transcript
+      - name: 🚀 Deploy SPFx App to Static App Catalog (with optional debug)
+        shell: pwsh
+        env:
+          M365_APP_ID: ${{ secrets.M365_APP_ID }}
+          M365_TENANT_DOMAIN: ${{ secrets.M365_TENANT_DOMAIN }}
+          M365_CERTIFICATE_BASE64: ${{ secrets.M365_CERTIFICATE_BASE64 }}
+          M365_CERTIFICATE_PASSWORD: ${{ secrets.M365_CERTIFICATE_PASSWORD }}
+          M365_APP_CATALOG_URL: ${{ secrets.M365_APP_CATALOG_URL }}
+          DEBUG_MODE: ${{ github.event.inputs.debug }}
+        run: |
+          $transcriptPath = "C:\m365-debug.txt"
+
+          # If debug requested, remove previous transcript and start recording
+          if ($Env:DEBUG_MODE -eq 'true') {
+            if (Test-Path $transcriptPath) { Remove-Item $transcriptPath -Force }
+            Write-Host "🐞 DEBUG MODE ON — starting transcript to $transcriptPath"
+            Start-Transcript -Path $transcriptPath -Force
+          } else {
+            Write-Host "🐞 DEBUG MODE OFF"
+          }
+
+          try {
+            Write-Host "📦 Installing Microsoft 365 CLI..."
+            npm install -g @pnp/cli-microsoft365@latest
+
+            Write-Host "🧩 Verifying CLI installation..."
+            m365 status
+            m365 version
+
+            Write-Host "🔐 Preparing certificate..."
+            $certPath = "C:\cert.pfx"
+            [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($Env:M365_CERTIFICATE_BASE64))
+            if (-Not (Test-Path $certPath)) {
+              Write-Error "❌ Certificate creation failed!"
+              exit 1
+            }
+
+            Write-Host "🔑 Logging into Microsoft 365 (certificate auth)..."
+            try {
+              m365 login --authType certificate `
+                --appId $Env:M365_APP_ID `
+                --tenant $Env:M365_TENANT_DOMAIN `
+                --certificateFile $certPath `
+                --password $Env:M365_CERTIFICATE_PASSWORD `
+                --environment "Production"
+              Write-Host "✅ Microsoft 365 login successful."
+            } catch {
+              Write-Error "❌ M365 login failed: $($_.Exception.Message)"
+              exit 1
+            }
+
+            Write-Host "🌐 Connecting to the target App Catalog: $Env:M365_APP_CATALOG_URL"
+            try {
+              # include certificate details again to ensure auth context when connecting
+              m365 spo connect --url $Env:M365_APP_CATALOG_URL --authType certificate --certificateFile $certPath --appId $Env:M365_APP_ID --tenant $Env:M365_TENANT_DOMAIN --password $Env:M365_CERTIFICATE_PASSWORD
+              Write-Host "✅ Connected to App Catalog."
+            } catch {
+              Write-Error "❌ Failed to connect to App Catalog: $($_.Exception.Message)"
+              exit 1
+            }
+
+            Write-Host "📁 Searching for .sppkg package (repo)..."
+            $pkg = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter *.sppkg | Select-Object -First 1
+            if (-not $pkg) {
+              Write-Error "❌ No .sppkg file found in repository workspace: $env:GITHUB_WORKSPACE"
+              exit 1
+            }
+            Write-Host "📦 Found package: $($pkg.FullName)"
+
+            Write-Host "📤 Uploading and deploying SPFx app to $Env:M365_APP_CATALOG_URL ..."
+            try {
+              # Add then deploy. use --appCatalogUrl for site collection app catalog
+              m365 spo app add --filePath "$($pkg.FullName)" --appCatalogUrl $Env:M365_APP_CATALOG_URL --overwrite
+              m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogUrl $Env:M365_APP_CATALOG_URL --skipFeatureDeployment
+              Write-Host "✅ SPFx App deployed successfully to site app catalog!"
+            } catch {
+              Write-Host "⚠️ Exception during deploy: $($_.Exception.Message)"
+              Write-Host "🔁 Retrying deploy once..."
+              Start-Sleep -Seconds 10
+              try {
+                m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogUrl $Env:M365_APP_CATALOG_URL --skipFeatureDeployment
+                Write-Host "✅ SPFx App deployed successfully on retry!"
+              } catch {
+                Write-Error "❌ Deployment failed after retry: $($_.Exception.Message)"
+                exit 1
+              }
+            }
+
+          } finally {
+            # Ensure transcript always closed if it was started
+            if ($Env:DEBUG_MODE -eq 'true') {
+              Write-Host "🛑 Stopping transcript..."
+              try { Stop-Transcript } catch { Write-Warning "Stop-Transcript failed: $($_.Exception.Message)" }
+              Write-Host "Transcript saved to $transcriptPath"
+            }
+
+            # Clean up the temporary cert file
+            if (Test-Path $certPath) {
+              try { Remove-Item $certPath -Force -ErrorAction SilentlyContinue } catch { Write-Warning "Could not remove certificate file: $($_.Exception.Message)" }
+            }
+          }
+
+      # Step 7: Upload transcript artifact (always run so you can inspect logs)
+      - name: Upload m365 debug transcript (if exists)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: m365-debug-logs
+          path: C:\m365-debug.txt
