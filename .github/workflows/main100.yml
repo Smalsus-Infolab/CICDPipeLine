@@ -1,0 +1,34 @@
+name: SPFx PipelineSolution1
+
+on:
+  push:
+    branches:
+      - CIPipeLineBranch
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and package SPFx solution
+        run: |
+          gulp bundle --ship
+          gulp package-solution --ship
+
+      - name: Deploy to SharePoint
+        run: |
+          npx @pnp/cli-microsoft365 login --authType password --userName "${{ secrets.SP_USERNAME }}" --password "${{ secrets.SP_PASSWORD }}"
+          npx @pnp/cli-microsoft365 spo app add --filePath "./sharepoint/solution/share-point-test.sppkg" --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog/AppCatalog" --overwrite
+          npx @pnp/cli-microsoft365 spo app deploy --name "share-point-test.sppkg" --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog/AppCatalog"
