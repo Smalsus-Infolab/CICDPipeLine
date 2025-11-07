@@ -39,14 +39,29 @@ jobs:
       # 🧩 Step 6: Deploy to SharePoint
       - name: Deploy to SharePoint
         env:
+          SP_APPID: ${{ secrets.M365_APP_ID }}
+          SP_TENANT: ${{ secrets.M365_TENANT_ID }}
+          SP_SECRET: ${{ secrets.M365_APP_SECRET }}
           SP_USERNAME: ${{ secrets.SP_USERNAME }}
-          SP_PASSWORD: ${{ secrets.SP_PASSWORD }}
         shell: pwsh
         run: |
-          Write-Host "🔐 Logging in to Microsoft 365..."
-          m365 login --authType password --userName $env:SP_USERNAME --password $env:SP_PASSWORD --tenant "hhhhteams.onmicrosoft.com"
+          Write-Host "🔐 Logging in to Microsoft 365 with app registration..."
+          m365 login --authType password `
+            --appId $env:SP_APPID `
+            --tenant $env:SP_TENANT `
+            --userName $env:SP_USERNAME `
+            --password $env:SP_SECRET
+
           Write-Host "📦 Uploading SPFx package..."
-          m365 spo app add --filePath "./sharepoint/solution/share-point-test.sppkg" --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" --overwrite
+          m365 spo app add `
+            --filePath "./sharepoint/solution/share-point-test.sppkg" `
+            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --overwrite
+
           Write-Host "🚀 Deploying SPFx package..."
-          m365 spo app deploy --name "share-point-test.sppkg" --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" --skipFeatureDeployment
+          m365 spo app deploy `
+            --name "share-point-test.sppkg" `
+            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --skipFeatureDeployment
+
           m365 logout
