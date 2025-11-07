@@ -1,0 +1,67 @@
+name: SPFx PipelineSolution1
+
+on:
+  push:
+    branches:
+      - CIPipeLineBranch
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Microsoft 365 CLI
+        run: npm install -g @pnp/cli-microsoft365
+
+      - name: Build and package SPFx solution
+        run: |
+          gulp clean
+          gulp bundle --ship
+          gulp package-solution --ship
+
+      - name: Deploy to SharePoint
+        shell: pwsh
+        env:
+          SP_APPID: ${{ secrets.M365_APP_ID }}
+          SP_TENANT: ${{ secrets.M365_TENANT_ID }}
+          SP_SECRET: ${{ secrets.M365_APP_SECRET }}
+          SP_USERNAME: ${{ secrets.SP_USERNAME }}
+        run: |
+          Write-Host "🔐 Logging in to Microsoft 365..."
+          m365 logout | Out-Null
+          m365 login --authType password `
+            --appId "$env:SP_APPID" `
+            --tenant "$env:SP_TENANT" `
+            --userName "$env:SP_USERNAME" `
+            --password "$env:SP_SECRET"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "❌ Microsoft 365 login failed. Please check secrets or permissions."
+            exit 1
+          }
+
+          Write-Host "📦 Uploading SPFx package..."
+          m365 spo app add `
+            --filePath "./sharepoint/solution/share-point-test.sppkg" `
+            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --overwrite
+
+          Write-Host "🚀 Deploying SPFx package..."
+          m365 spo app deploy `
+            --name "share-point-test.sppkg" `
+            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --skipFeatureDeployment
+
+          m365 logout
