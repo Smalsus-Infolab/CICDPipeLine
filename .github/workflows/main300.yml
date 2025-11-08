@@ -39,22 +39,13 @@ jobs:
       # 🧩 Step 6: Deploy SPFx package to SharePoint
       - name: Deploy to SharePoint
         shell: pwsh
-        env:
-          M365_USERNAME: ${{ secrets.SP_USERNAME }}
-          M365_PASSWORD: ${{ secrets.SP_PASSWORD }}
         run: |
-          Write-Host "🔐 Logging in to Microsoft 365..."
-          m365 logout | Out-Null
-
-          # ✅ Use basic authentication (no Azure App ID)
-          m365 login --authType basic `
-            --userName "$env:M365_USERNAME" `
-            --password "$env:M365_PASSWORD"
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Microsoft 365 login failed. Check your username/password in GitHub Secrets."
-            exit 1
-          }
+          $siteUrl = "${{ secrets.SPO_SITE_URL }}"
+          $username = "${{ secrets.SPO_USERNAME }}"
+          $password = ConvertTo-SecureString "${{ secrets.SPO_PASSWORD }}" -AsPlainText -Force
+          $creds = New-Object System.Management.Automation.PSCredential ($username, $password)
+          Connect-PnPOnline -Url $siteUrl -Credentials $creds
+          Add-PnPApp -Path "sharepoint/solution/hhhh-portal.sppkg" -Publish
 
           Write-Host "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
