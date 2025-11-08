@@ -11,34 +11,44 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 🧩 Step 1: Checkout repository
       - name: Checkout ayush branch
         uses: actions/checkout@v4
         with:
           ref: ayush
 
-      # 🧩 Step 2: Setup Node.js (match SPFx version)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 🧩 Step 3: Install dependencies
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: npm ci
 
-      # 🧩 Step 4: Install Microsoft 365 CLI
+      - name: Install Gulp
+        run: npm install gulp-cli -g
+
       - name: Install Microsoft 365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      # 🧩 Step 5: Build and package SPFx solution
       - name: Build and package SPFx solution
         run: |
           gulp clean
           gulp bundle --ship
           gulp package-solution --ship
 
-      # 🧩 Step 6: Deploy SPFx package to SharePoint
+      - name: Debug file existence
+        run: |
+          echo "Checking if .sppkg file exists..."
+          dir sharepoint/solution
+
       - name: Deploy to SharePoint
         shell: pwsh
         run: |
@@ -52,13 +62,13 @@ jobs:
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
             --filePath "sharepoint/solution/share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps" `
             --overwrite
 
           echo "🚀 Deploying SPFx package..."
           m365 spo app deploy `
             --name "share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps" `
             --skipFeatureDeployment
 
           echo "✅ Deployment completed successfully!"
