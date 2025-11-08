@@ -3,7 +3,7 @@ name: SPFx PipelineSolution2
 on:
   push:
     branches:
-      - CIPipeLineBranch
+      - ayush
   workflow_dispatch:
 
 jobs:
