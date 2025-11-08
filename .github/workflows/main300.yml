@@ -62,13 +62,13 @@ jobs:
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
             --filePath "sharepoint/solution/share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
             --overwrite
 
           echo "🚀 Deploying SPFx package..."
           m365 spo app deploy `
             --name "share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
             --skipFeatureDeployment
 
           echo "✅ Deployment completed successfully!"
