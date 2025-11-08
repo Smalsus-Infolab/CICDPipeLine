@@ -42,15 +42,12 @@ jobs:
       - name: Deploy to SharePoint
         shell: pwsh
         run: |
-          echo "🔐 Decoding certificate..."
-          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String("${{ secrets.M365_CERT_BASE64 }}"))
-
           echo "🔐 Logging into Microsoft 365..."
           m365 login --authType certificate `
             --appId "b58c1ab0-3002-4fba-9c53-7f8bb7b29716" `
             --tenant "4c619a69-b7be-4e3d-bf26-993d59ec2875" `
-            --certificateFile "cert.pfx" `
-            --certificatePassword "StrongPass@123"
+            --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
+            --password "StrongPass@123"
 
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
