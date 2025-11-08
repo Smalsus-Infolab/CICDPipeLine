@@ -47,7 +47,7 @@ jobs:
 
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
-            --filePath "sharepoint/solution/hhhh-portal.sppkg" `
+            --filePath "sharepoint/solution/share-point-test.sppkg" `
             --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
             --overwrite
 
