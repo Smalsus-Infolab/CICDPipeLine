@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 🧩 Step 2: Setup Node.js (v20 LTS)
+      # 🧩 Step 2: Setup Node.js (match SPFx version)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -40,24 +40,20 @@ jobs:
       - name: Deploy to SharePoint
         shell: pwsh
         run: |
-          $siteUrl = "${{ secrets.SPO_SITE_URL }}"
-          $username = "${{ secrets.SPO_USERNAME }}"
-          $password = ConvertTo-SecureString "${{ secrets.SPO_PASSWORD }}" -AsPlainText -Force
-          $creds = New-Object System.Management.Automation.PSCredential ($username, $password)
-          Connect-PnPOnline -Url $siteUrl -Credentials $creds
-          Add-PnPApp -Path "sharepoint/solution/hhhh-portal.sppkg" -Publish
+          echo "🔐 Logging into Microsoft 365..."
+          m365 login --authType password --userName ${{ secrets.SPO_USERNAME }} --password ${{ secrets.SPO_PASSWORD }}
 
-          Write-Host "📦 Uploading SPFx package to App Catalog..."
+          echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
-            --filePath "./sharepoint/solution/share-point-test.sppkg" `
+            --filePath "sharepoint/solution/hhhh-portal.sppkg" `
             --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
             --overwrite
 
-          Write-Host "🚀 Deploying SPFx package..."
+          echo "🚀 Deploying SPFx package..."
           m365 spo app deploy `
-            --name "share-point-test.sppkg" `
+            --name "hhhh-portal.sppkg" `
             --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
             --skipFeatureDeployment
 
-          Write-Host "✅ Deployment completed successfully!"
+          echo "✅ Deployment completed successfully!"
           m365 logout
