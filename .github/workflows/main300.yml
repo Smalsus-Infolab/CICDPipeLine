@@ -48,13 +48,13 @@ jobs:
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
             --filePath "sharepoint/solution/hhhh-portal.sppkg" `
-            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
             --overwrite
 
           echo "🚀 Deploying SPFx package..."
           m365 spo app deploy `
             --name "hhhh-portal.sppkg" `
-            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
+            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
             --skipFeatureDeployment
 
           echo "✅ Deployment completed successfully!"
