@@ -12,8 +12,10 @@ jobs:
 
     steps:
       # 🧩 Step 1: Checkout repository
-      - name: Checkout repository
+      - name: Checkout ayush branch
         uses: actions/checkout@v4
+        with:
+          ref: ayush
 
       # 🧩 Step 2: Setup Node.js (match SPFx version)
       - name: Setup Node.js
