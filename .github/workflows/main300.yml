@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           echo "🔐 Logging into Microsoft 365..."
-          m365 login --authType password --userName ${{ secrets.SPO_USERNAME }} --password ${{ secrets.SPO_PASSWORD }}
+          m365 login --authType password --userName ${{ secrets.SPO_USERNAME }} --password ${{ secrets.SPO_PASSWORD }} --authFlow password
 
           echo "📦 Uploading SPFx package to App Catalog..."
           m365 spo app add `
