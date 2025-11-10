@@ -59,7 +59,7 @@ jobs:
             --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
             --password "StrongPass@123"
 
-          echo "📦 Uploading SPFx package to App Catalog..."
+          echo "📦 Uploading SPFx package to App Catalog...."
           m365 spo app add `
             --filePath "sharepoint/solution/share-point-test.sppkg" `
             --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps" `
