@@ -54,8 +54,8 @@ jobs:
         run: |
           echo "🔐 Logging into Microsoft 365..."
           m365 login --authType certificate `
-            --appId "b58c1ab0-3002-4fba-9c53-7f8bb7b29716" `
-            --tenant "4c619a69-b7be-4e3d-bf26-993d59ec2875" `
+            --appId "7a4c0ac6-0f6a-4111-b80d-4ae60dc4ff5c" `
+            --tenant "249283bb-0d3b-4521-8dc1-e1aff7743266" `
             --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
             --password "StrongPass@123"
 
