@@ -1,4 +1,4 @@
-name: Test M365 Login
+name: Test M365 cicd
 
 on:
   workflow_dispatch:
