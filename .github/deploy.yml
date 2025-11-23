@@ -1,4 +1,4 @@
-name: Test M365 Login
+name: PipelineSolution2
 
 on:
   workflow_dispatch:
