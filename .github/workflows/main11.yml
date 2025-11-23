@@ -1,98 +1,25 @@
-name: SPFx PipelineSolution1
+name: Test M365 Login
 
 on:
-  push:
-    branches:
-      - CIPipeLineBranch
   workflow_dispatch:
 
 jobs:
-  build-deploy:
+  test-login:
     runs-on: windows-latest
 
     steps:
-      # 🧩 Step 1: Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Install Microsoft 365 CLI
+        run: npm install -g @pnp/cli-microsoft365
 
-      # 🧩 Step 2: Setup Node.js (v20)
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      # 🧩 Step 3: Install Dependencies
-      - name: Install Dependencies
-        run: npm ci --force
-
-      # 🧩 Step 4: Build & Package SPFx Solution
-      - name: Build & Package SPFx Solution
+      - name: Try login
         shell: pwsh
         run: |
-          Write-Host "🧹 Cleaning and building SPFx..."
-          $env:NODE_OPTIONS="--max_old_space_size=8192"
-          npx gulp clean
-          npx gulp build
-          npx gulp bundle --ship
-          npx gulp package-solution --ship
+          echo "🔐 Testing M365 login..."
+          m365 login --authType certificate `
+            --appId "7a4c0ac6-0f6a-4111-b80d-4ae60dc4ff5c" `
+            --tenant "smalsusinfolabs.onmicrosoft.com" `
+            --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
+            --password "${{ secrets.M365_CERT_PASSWORD }}"
 
-      # 🧩 Step 5: Verify Secrets
-      - name: 🔍 Verify Secrets Access
-        shell: pwsh
-        run: |
-          $required = @(
-            "M365_APP_ID",
-            "M365_TENANT_ID",
-            "M365_CERTIFICATE_BASE64",
-            "M365_CERTIFICATE_PASSWORD"
-          )
-
-          foreach ($s in $required) {
-            if ("${{ secrets[$s] }}" -eq "") {
-              Write-Error "❌ Secret $s is missing!"
-              exit 1
-            } else {
-              Write-Host "✅ Secret $s found."
-            }
-          }
-
-      # 🧩 Step 6: Deploy SPFx App to Tenant Catalog (Certificate Auth)
-      - name: Deploy SPFx App to Tenant Catalog (Certificate Auth)
-        shell: pwsh
-        run: |
-          Write-Host "📦 Installing Microsoft 365 CLI..."
-          npm install -g @pnp/cli-microsoft365@latest
-
-          Write-Host "🔐 Preparing certificate..."
-          $certPath = "C:\\cert.pfx"
-          [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String("${{ secrets.M365_CERTIFICATE_BASE64 }}"))
-          if (-Not (Test-Path $certPath)) {
-            Write-Error "❌ Failed to create certificate file."
-            exit 1
-          }
-
-          Write-Host "🔑 Logging into Microsoft 365 with certificate..."
-          try {
-            m365 login --authType certificate `
-              --appId "${{ secrets.M365_APP_ID }}" `
-              --tenant "${{ secrets.M365_TENANT_ID }}" `
-              --certificateFile $certPath `
-              --password "${{ secrets.M365_CERTIFICATE_PASSWORD }}"
-          } catch {
-            Write-Error "❌ Microsoft 365 login failed. Check certificate or password."
-            exit 1
-          }
-
-          Write-Host "📁 Searching for SPFx package..."
-          $pkg = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter *.sppkg | Select-Object -First 1
-          if (-not $pkg) {
-            Write-Error "❌ No .sppkg file found!"
-            exit 1
-          }
-
-          Write-Host "📤 Uploading and deploying SPFx app..."
-          m365 spo app add --filePath $pkg.FullName --appCatalogScope tenant --overwrite
-          m365 spo app deploy --name (Split-Path $pkg.FullName -Leaf) --appCatalogScope tenant --skipFeatureDeployment
-
-          Write-Host "✅ SPFx App deployment completed successfully!"
+          echo "🔍 Checking SharePoint connectivity..."
+          m365 spo site get --url "https://smalsusinfolabs.sharepoint.com/sites/apps"
