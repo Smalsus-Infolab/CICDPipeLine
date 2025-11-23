@@ -1,63 +1,25 @@
-name: SPFx PipelineSolution2
+name: Test M365 Login
 
 on:
-  push:
-    branches:
-      - CIPipeLineBranch
   workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
+  test-login:
+    runs-on: windows-latest
 
     steps:
-      # 🧩 Step 1: Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 🧩 Step 2: Setup Node.js (v20 LTS)
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # 🧩 Step 3: Install dependencies
-      - name: Install dependencies
-        run: npm ci
-
-      # 🧩 Step 4: Install Microsoft 365 CLI
       - name: Install Microsoft 365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      # 🧩 Step 5: Build and package SPFx solution
-      - name: Build and package SPFx solution
-        run: |
-          gulp clean
-          gulp bundle --ship
-          gulp package-solution --ship
-
-      # 🧩 Step 6: Deploy SPFx package to SharePoint
-      - name: Deploy to SharePoint
+      - name: Try login
         shell: pwsh
         run: |
-          $siteUrl = "${{ secrets.SPO_SITE_URL }}"
-          $username = "${{ secrets.SPO_USERNAME }}"
-          $password = ConvertTo-SecureString "${{ secrets.SPO_PASSWORD }}" -AsPlainText -Force
-          $creds = New-Object System.Management.Automation.PSCredential ($username, $password)
-          Connect-PnPOnline -Url $siteUrl -Credentials $creds
-          Add-PnPApp -Path "sharepoint/solution/hhhh-portal.sppkg" -Publish
+          echo "🔐 Testing M365 login..."
+          m365 login --authType certificate `
+            --appId "7a4c0ac6-0f6a-4111-b80d-4ae60dc4ff5c" `
+            --tenant "smalsusinfolabs.onmicrosoft.com" `
+            --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
+            --password "${{ secrets.M365_CERT_PASSWORD }}"
 
-          Write-Host "📦 Uploading SPFx package to App Catalog..."
-          m365 spo app add `
-            --filePath "./sharepoint/solution/share-point-test.sppkg" `
-            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
-            --overwrite
-
-          Write-Host "🚀 Deploying SPFx package..."
-          m365 spo app deploy `
-            --name "share-point-test.sppkg" `
-            --appCatalogUrl "https://hhhhteams.sharepoint.com/sites/appcatalog" `
-            --skipFeatureDeployment
-
-          Write-Host "✅ Deployment completed successfully!"
-          m365 logout
+          echo "🔍 Checking SharePoint connectivity..."
+          m365 spo site get --url "https://smalsusinfolabs.sharepoint.com/sites/apps"
