@@ -1,78 +1,25 @@
-name: SPFx PipelineSolution
+name: Test M365 Login
 
 on:
-  push:
-    branches:
-      - ayush
   workflow_dispatch:
 
 jobs:
-  deploy:
+  test-login:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout ayush branch
-        uses: actions/checkout@v4
-        with:
-          ref: ayush
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Cache node modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Gulp
-        run: npm install gulp-cli -g
-
       - name: Install Microsoft 365 CLI
         run: npm install -g @pnp/cli-microsoft365
 
-      - name: Build and package SPFx solution
-        run: |
-          gulp clean
-          gulp bundle --ship
-          gulp package-solution --ship
-
-      - name: Debug file existence
-        run: |
-          echo "Checking if .sppkg file exists..."
-          dir sharepoint/solution
-
-      - name: Deploy to SharePoint
+      - name: Try login
         shell: pwsh
         run: |
-          echo "🔐 Logging into Microsoft 365..."
+          echo "🔐 Testing M365 login..."
           m365 login --authType certificate `
             --appId "7a4c0ac6-0f6a-4111-b80d-4ae60dc4ff5c" `
-            --tenant "249283bb-0d3b-4521-8dc1-e1aff7743266" `
+            --tenant "smalsusinfolabs.onmicrosoft.com" `
             --certificateBase64Encoded "${{ secrets.M365_CERT_BASE64 }}" `
-            --password "StrongPass@123"
+            --password "${{ secrets.M365_CERT_PASSWORD }}"
 
-          echo "🔎 Checking app catalog site..."
-          m365 spo site get --url "https://smalsusinfolabs.sharepoint.com/sites/apps/appcatalog"
-
-          echo "📦 Uploading SPFx package to App Catalog...."
-          m365 spo app add `
-            --filePath "sharepoint/solution/share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
-            --overwrite
-
-          echo "🚀 Deploying SPFx package..."
-          m365 spo app deploy `
-            --name "share-point-test.sppkg" `
-            --appCatalogUrl "https://smalsusinfolabs.sharepoint.com/sites/apps/AppCatalog" `
-            --skipFeatureDeployment
-
-          echo "✅ Deployment completed successfully!"
-          m365 logout
+          echo "🔍 Checking SharePoint connectivity..."
+          m365 spo site get --url "https://smalsusinfolabs.sharepoint.com/sites/apps"
