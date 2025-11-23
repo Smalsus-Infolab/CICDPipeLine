@@ -1,4 +1,4 @@
-7name: SPFx PipelineSolution1
+name: SPFx PipelineSolution1
 
 on:
   push:
